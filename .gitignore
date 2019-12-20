@@ -1,0 +1,52 @@
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+
+.idea/*
+overlays
+overlays/*
+build
+*.iml
+bin
+.DS_Store
+/logs
+/*/logs
+/logback
+/*/logback
+.idea
+
+*target*
+*.jar
+*.war
+*.ear
+*.class
+*.zip
+*.tar.gz
+*.rar
+
+# eclipse specific git ignore
+*.pydevproject
+.project
+.metadata
+bin/**
+tmp/**
+tmp/**/*
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.classpath
+.settings/
+.loadpath
+
+# External tool builders
+.externalToolBuilders/
