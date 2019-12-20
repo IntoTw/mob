@@ -68,7 +68,7 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
             consumerSourceAnnotationValue.forEach((key, value) -> {
                 printLog("key: {} value: {}",key,value);
             });
-            addConsumerImport(element);
+            addImport(element,PackageSupportEnum.FeignClient,PackageSupportEnum.RequestBody,PackageSupportEnum.RequestMapping,PackageSupportEnum.RequestParam);
             addClassAnnotation(element);
             addMethodAnnotation(element);
 
@@ -81,7 +81,7 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
         //获取模板类
         //构建内部类
         set.forEach(element -> {
-            addProviderImport(element);
+            addImport(element,PackageSupportEnum.Autowired,PackageSupportEnum.PostMapping,PackageSupportEnum.RequestMapping);
             buildProviderSourceAnnotationValue(element);
             JCTree jcTree = trees.getTree(element);
             final java.util.List<JCTree.JCMethodDecl> methodDecls = new ArrayList<>();
@@ -89,7 +89,14 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
             jcTree.accept(new TreeTranslator() {
                 @Override
                 public void visitMethodDef(JCTree.JCMethodDecl jcMethodDecl) {
-                    methodDecls.add(jcMethodDecl);
+                    //modify by chenxiang  2019/12/20 //只处理public方法
+                    if((jcMethodDecl.mods.flags|Flags.PUBLIC)==Flags.PUBLIC){
+                        List<JCTree.JCAnnotation> methodAnnotations=jcMethodDecl.mods.annotations;
+                        java.util.List<JCTree.JCAnnotation> target = new ArrayList<>(methodAnnotations);
+                        target.removeIf(jcAnnotation -> jcAnnotation.annotationType.toString().contains("Override"));
+                        jcMethodDecl.mods.annotations=List.from(target);
+                        methodDecls.add(jcMethodDecl);
+                    }
                     super.visitMethodDef(jcMethodDecl);
                 }
             });
@@ -101,7 +108,6 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
                     jcClassDecl.defs = jcClassDecl.defs.append(jcClassDecl1);
                 }
             });
-
         });
         set.forEach(element -> {
             JCTree jcTree = trees.getTree(element);
@@ -256,31 +262,42 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
         JCTree.JCAnnotation jcAnnotation=treeMaker.Annotation(expression, args);
         return jcAnnotation;
     }
-    private void addConsumerImport(Element element) {
+    private void addImport(Element element,PackageSupportEnum... packageSupportEnums) {
         TreePath treePath = trees.getPath(element);
         JCTree.JCCompilationUnit jccu = (JCTree.JCCompilationUnit) treePath.getCompilationUnit();
         java.util.List<JCTree> trees = new ArrayList<>();
         trees.addAll(jccu.defs);
-        JCTree.JCImport feignImport = buildImport(PackageSupportEnum.FeignClient.getPackageName(), PackageSupportEnum.FeignClient.getClassName());
-        JCTree.JCImport requestBody = buildImport(PackageSupportEnum.RequestBody.getPackageName(), PackageSupportEnum.RequestBody.getClassName());
-        JCTree.JCImport requestMapping = buildImport(PackageSupportEnum.RequestMapping.getPackageName(), PackageSupportEnum.RequestMapping.getClassName());
-        JCTree.JCImport requestParam = buildImport(PackageSupportEnum.RequestParam.getPackageName(), PackageSupportEnum.RequestParam.getClassName());
-        // TODO: 2019/12/18 实际上构建出来的对象equals方法并不一定能成功判断重复import，应该循环根据类名判断 后续改进
-        if (!trees.contains(feignImport)) {
-            trees.add(0,feignImport);
+        java.util.List<JCTree> sourceImportList = new ArrayList<>();
+        trees.forEach(e->{
+            if(e.getKind().equals(Tree.Kind.IMPORT)){
+                sourceImportList.add(e);
+            }
+        });
+        java.util.List<JCTree.JCImport> needImportList=buildImportList(packageSupportEnums);
+        for (int i = 0; i < needImportList.size(); i++) {
+            boolean importExist=false;
+            for (int j = 0; j < sourceImportList.size(); j++) {
+                if(sourceImportList.get(j).toString().equals(needImportList.get(i).toString())){
+                    importExist=true;
+                }
+            }
+            if(!importExist){
+                trees.add(0,needImportList.get(i));
+            }
         }
-        if (!trees.contains(requestBody)) {
-            trees.add(0,requestBody);
-        }
-        if (!trees.contains(requestMapping)) {
-            trees.add(0,requestMapping);
-        }
-        if (!trees.contains(requestParam)) {
-            trees.add(0,requestParam);
-        }
-
         printLog("import trees{}",trees.toString());
         jccu.defs=List.from(trees);
+    }
+
+    private java.util.List<JCTree.JCImport> buildImportList(PackageSupportEnum... packageSupportEnums) {
+        java.util.List<JCTree.JCImport> targetImportList =new ArrayList<>();
+        if(packageSupportEnums.length>0){
+            for (int i = 0; i < packageSupportEnums.length; i++) {
+                JCTree.JCImport needImport = buildImport(packageSupportEnums[i].getPackageName(),packageSupportEnums[i].getClassName());
+                targetImportList.add(needImport);
+            }
+        }
+        return targetImportList;
     }
 
     private JCTree.JCImport buildImport(String packageName, String className) {
@@ -402,8 +419,14 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
             printLog("annotation: {}", jcAnnotation);
             e.mods.annotations = e.mods.annotations.append(jcAnnotation);
             JCTree.JCExpressionStatement exec = getMethodInvocationStat(serviceName, e.name.toString(), e.params);
-            JCTree.JCReturn jcReturn=treeMaker.Return(exec.getExpression());
-            e.body.stats = e.body.stats.append(jcReturn);
+            if(!e.restype.toString().contains("void")){
+                JCTree.JCReturn jcReturn=treeMaker.Return(exec.getExpression());
+                e.body.stats = e.body.stats.append(jcReturn);
+            }else {
+                e.body.stats = e.body.stats.append(exec);
+            }
+
+
         });
         return List.from(target);
     }
@@ -421,26 +444,6 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
         return exec;
     }
 
-    private void addProviderImport(Element element) {
-        TreePath treePath = trees.getPath(element);
-        JCTree.JCCompilationUnit jccu = (JCTree.JCCompilationUnit) treePath.getCompilationUnit();
-        java.util.List<JCTree> trees = new ArrayList<>();
-        trees.addAll(jccu.defs);
-        JCTree.JCImport feignImport = buildImport(PackageSupportEnum.Autowired.getPackageName(), PackageSupportEnum.Autowired.getClassName());
-        JCTree.JCImport requestBody = buildImport(PackageSupportEnum.PostMapping.getPackageName(), PackageSupportEnum.PostMapping.getClassName());
-        JCTree.JCImport requestMapping = buildImport(PackageSupportEnum.RequestMapping.getPackageName(), PackageSupportEnum.RequestMapping.getClassName());
-        if (!trees.contains(feignImport)) {
-            trees.add(0,feignImport);
-        }
-        if (!trees.contains(requestBody)) {
-            trees.add(0,requestBody);
-        }
-        if (!trees.contains(requestMapping)) {
-            trees.add(0,requestMapping);
-        }
-        printLog("import trees{}", trees.toString());
-        jccu.defs = from(trees);
-    }
     public enum PackageSupportEnum {
         FeignClient("org.springframework.cloud.netflix.feign", "FeignClient"),
         RequestBody("org.springframework.web.bind.annotation", "RequestBody"),
@@ -448,7 +451,8 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
         PostMapping("org.springframework.web.bind.annotation", "PostMapping"),
         Autowired("org.springframework.beans.factory.annotation", "Autowired"),
         RestController("org.springframework.web.bind.annotation", "RestController"),
-        RequestParam("org.springframework.web.bind.annotation", "RequestParam");
+        RequestParam("org.springframework.web.bind.annotation", "RequestParam"),
+        Override("java.lang", "Override");
 
         private String packageName;
         private String className;
