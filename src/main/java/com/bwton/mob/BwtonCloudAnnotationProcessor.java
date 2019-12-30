@@ -23,6 +23,8 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +46,7 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
     private Names names;
     Map<String, JCTree.JCAssign> consumerSourceAnnotationValue=new HashMap<>();
     Map<String, JCTree.JCAssign> providerSourceAnnotationValue=new HashMap<>();
-
+    java.util.List<String> javaBaseVarType;
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
@@ -53,10 +55,32 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
         Context context = ((JavacProcessingEnvironment) processingEnv).getContext();
         this.treeMaker = TreeMaker.instance(context);
         this.names = Names.instance(context);
+        String[] strings=new String[]{
+                "int",
+                "char",
+                "boolean",
+                "long",
+                "double",
+                "float",
+                "byte",
+                "string",
+                "String",
+                "Integer",
+                "Float",
+                "Double",
+                "Long",
+                "Boolean",
+                "Characte",
+        };
+        javaBaseVarType =Arrays.asList(strings);
+
     }
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        if (roundEnv.processingOver()) {
+            return false;
+        }
         handleConsumer(roundEnv);
         handleProvider(roundEnv);
         return true;
@@ -68,7 +92,7 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
             consumerSourceAnnotationValue.forEach((key, value) -> {
                 printLog("key: {} value: {}",key,value);
             });
-            addImport(element,PackageSupportEnum.FeignClient,PackageSupportEnum.RequestBody,PackageSupportEnum.RequestMapping,PackageSupportEnum.RequestParam);
+//            addImport(element,PackageSupportEnum.FeignClient,PackageSupportEnum.RequestBody,PackageSupportEnum.RequestMapping,PackageSupportEnum.RequestParam);
             addClassAnnotation(element);
             addMethodAnnotation(element);
 
@@ -81,7 +105,7 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
         //获取模板类
         //构建内部类
         set.forEach(element -> {
-            addImport(element,PackageSupportEnum.Autowired,PackageSupportEnum.PostMapping,PackageSupportEnum.RequestMapping);
+//            addImport(element,PackageSupportEnum.Autowired,PackageSupportEnum.PostMapping,PackageSupportEnum.RequestMapping);
             buildProviderSourceAnnotationValue(element);
             JCTree jcTree = trees.getTree(element);
             final java.util.List<JCTree.JCMethodDecl> methodDecls = new ArrayList<>();
@@ -143,8 +167,7 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
         jcTree.accept(new TreeTranslator(){
             @Override
             public void visitAnnotation(JCTree.JCAnnotation jcAnnotation) {
-                JCTree.JCIdent jcIdent=(JCTree.JCIdent)jcAnnotation.getAnnotationType();
-                if(jcIdent.name.contentEquals("BwtonCloudProvider")){
+                if(jcAnnotation.getAnnotationType().toString().contains("BwtonCloudProvider")){
                     printLog("class Annotation arg process:{}",jcAnnotation.toString());
                     jcAnnotation.args.forEach(e->{
                         JCTree.JCAssign jcAssign=(JCTree.JCAssign)e ;
@@ -192,7 +215,14 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
                                     JCTree.JCVariableDecl jcVariableDecl=jcMethodDecl.params.get(i);
                                     if(i==0){
                                         //第一个参数加requestbody注解，其他参数加requestparam注解，否则会报错
-                                        jcVariableDecl.mods.annotations = jcVariableDecl.mods.annotations.append(makeAnnotation(PackageSupportEnum.RequestBody.toString(), List.nil()));
+                                        if(!isBaseVarType(jcVariableDecl.vartype.toString()))
+                                        {
+                                            jcVariableDecl.mods.annotations = jcVariableDecl.mods.annotations.append(makeAnnotation(PackageSupportEnum.RequestBody.toString(), List.nil()));
+                                        }else {
+                                            JCTree.JCAnnotation requestParam=makeAnnotation(PackageSupportEnum.RequestParam.toString(),
+                                                    List.of(makeArg("value",jcVariableDecl.name.toString())));
+                                            jcVariableDecl.mods.annotations = jcVariableDecl.mods.annotations.append(requestParam);
+                                        }
                                     }else {
                                         JCTree.JCAnnotation requestParam=makeAnnotation(PackageSupportEnum.RequestParam.toString(),
                                                 List.of(makeArg("value",jcVariableDecl.name.toString())));
@@ -407,7 +437,27 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
             }
         });
         target.forEach(e -> {
-            e.params.get(0).mods.annotations = e.params.get(0).mods.annotations.append(makeAnnotation(PackageSupportEnum.RequestBody.toString(), nil()));
+            if (e.params.size() > 0) {
+                for (int i = 0; i < e.params.size() ; i++) {
+                    JCTree.JCVariableDecl jcVariableDecl=e.params.get(i);
+                    if(i==0){
+                        //第一个参数加requestbody注解，其他参数加requestparam注解，否则会报错
+                        if(!isBaseVarType(jcVariableDecl.vartype.toString()))
+                        {
+                            jcVariableDecl.mods.annotations = jcVariableDecl.mods.annotations.append(makeAnnotation(PackageSupportEnum.RequestBody.toString(), List.nil()));
+                        }else {
+                            JCTree.JCAnnotation requestParam=makeAnnotation(PackageSupportEnum.RequestParam.toString(),
+                                    List.of(makeArg("value",jcVariableDecl.name.toString())));
+                            jcVariableDecl.mods.annotations = jcVariableDecl.mods.annotations.append(requestParam);
+                        }
+                    }else {
+                        JCTree.JCAnnotation requestParam=makeAnnotation(PackageSupportEnum.RequestParam.toString(),
+                                List.of(makeArg("value",jcVariableDecl.name.toString())));
+                        jcVariableDecl.mods.annotations = jcVariableDecl.mods.annotations.append(requestParam);
+                    }
+
+                }
+            }
             printLog("sourceMethods: {}", e);
             //value
             JCTree.JCExpression jcAssign=makeArg("value","/"+e.name.toString());
@@ -443,7 +493,15 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
         printLog("method invoke:{}", exec);
         return exec;
     }
-
+    private boolean isBaseVarType(String varType){
+        for (int i = 0; i < javaBaseVarType.size(); i++) {
+            String baseVarType=javaBaseVarType.get(i);
+            if(varType.contains(baseVarType)){
+                return true;
+            }
+        }
+        return false;
+    }
     public enum PackageSupportEnum {
         FeignClient("org.springframework.cloud.netflix.feign", "FeignClient"),
         RequestBody("org.springframework.web.bind.annotation", "RequestBody"),
