@@ -1,4 +1,4 @@
-package com.bwton.mob;
+package cn.intotw.mob;
 
 import com.sun.source.tree.Tree;
 import com.sun.source.util.TreePath;
@@ -26,10 +26,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-@SupportedAnnotationTypes("com.bwton.*")
+@SupportedAnnotationTypes("cn.intotw.*")
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 @Deprecated
-public class BwtonCloudConsumerProcessor extends AbstractProcessor {
+public class MobCloudConsumerProcessor extends AbstractProcessor {
     private Messager messager;
     private JavacTrees trees;
     private TreeMaker treeMaker;
@@ -54,7 +54,7 @@ public class BwtonCloudConsumerProcessor extends AbstractProcessor {
     }
 
     private void handleConsumer(RoundEnvironment roundEnv) {
-        Set<? extends Element> set = roundEnv.getElementsAnnotatedWith(BwtonCloudConsumer.class);
+        Set<? extends Element> set = roundEnv.getElementsAnnotatedWith(MobCloudConsumer.class);
         set.forEach(element -> {
             buildSourceAnnotationValue(element);
             sourceAnnotationValue.forEach((key, value) -> {
@@ -76,7 +76,7 @@ public class BwtonCloudConsumerProcessor extends AbstractProcessor {
             @Override
             public void visitAnnotation(JCTree.JCAnnotation jcAnnotation) {
                 JCTree.JCIdent jcIdent=(JCTree.JCIdent)jcAnnotation.getAnnotationType();
-                if(jcIdent.name.contentEquals("BwtonCloudConsumer")){
+                if(jcIdent.name.contentEquals("MobCloudConsumer")){
                     printLog("class Annotation arg process:{}",jcAnnotation.toString());
                     jcAnnotation.args.forEach(e->{
                         JCTree.JCAssign jcAssign=(JCTree.JCAssign)e ;

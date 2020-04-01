@@ -1,4 +1,4 @@
-package com.bwton.mob;
+package cn.intotw.mob;
 
 import com.sun.source.tree.Tree;
 import com.sun.source.util.TreePath;
@@ -24,7 +24,6 @@ import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -37,9 +36,9 @@ import static com.sun.tools.javac.util.List.nil;
  * @Description:
  * @create 2019/12/17 20:31
  */
-@SupportedAnnotationTypes("com.bwton.*")
+@SupportedAnnotationTypes("cn.intotw.*")
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
-public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
+public class ModCloudAnnotationProcessor extends AbstractProcessor {
     private Messager messager;
     private JavacTrees trees;
     private TreeMaker treeMaker;
@@ -48,7 +47,7 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
     Map<String, JCTree.JCAssign> providerSourceAnnotationValue=new HashMap<>();
     java.util.List<String> javaBaseVarType;
     @Override
-    public synchronized void init(ProcessingEnvironment processingEnv) {
+    public void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         this.messager = processingEnv.getMessager();
         this.trees = JavacTrees.instance(processingEnv);
@@ -86,7 +85,7 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
         return true;
     }
     private void handleConsumer(RoundEnvironment roundEnv) {
-        Set<? extends Element> set = roundEnv.getElementsAnnotatedWith(BwtonCloudConsumer.class);
+        Set<? extends Element> set = roundEnv.getElementsAnnotatedWith(MobCloudConsumer.class);
         set.forEach(element -> {
             buildConsumerSourceAnnotationValue(element);
             consumerSourceAnnotationValue.forEach((key, value) -> {
@@ -100,8 +99,8 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
             printLog("result :{}",jcTree);
         });
     }
-    private boolean handleProvider(RoundEnvironment roundEnv) {
-        Set<? extends Element> set = roundEnv.getElementsAnnotatedWith(BwtonCloudProvider.class);
+    private void handleProvider(RoundEnvironment roundEnv) {
+        Set<? extends Element> set = roundEnv.getElementsAnnotatedWith(MobCloudProvider.class);
         //获取模板类
         //构建内部类
         set.forEach(element -> {
@@ -138,7 +137,6 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
             printLog("result :{}", jcTree);
         });
 
-        return true;
     }
     private void buildConsumerSourceAnnotationValue(Element element) {
         JCTree jcTree = trees.getTree(element);
@@ -147,7 +145,7 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
             @Override
             public void visitAnnotation(JCTree.JCAnnotation jcAnnotation) {
                 JCTree.JCIdent jcIdent=(JCTree.JCIdent)jcAnnotation.getAnnotationType();
-                if(jcIdent.name.contentEquals("BwtonCloudConsumer")){
+                if(jcIdent.name.contentEquals("MobCloudConsumer")){
                     printLog("class Annotation arg process:{}",jcAnnotation.toString());
                     jcAnnotation.args.forEach(e->{
                         JCTree.JCAssign jcAssign=(JCTree.JCAssign)e ;
@@ -167,7 +165,7 @@ public class BwtonCloudAnnotationProcessor extends AbstractProcessor {
         jcTree.accept(new TreeTranslator(){
             @Override
             public void visitAnnotation(JCTree.JCAnnotation jcAnnotation) {
-                if(jcAnnotation.getAnnotationType().toString().contains("BwtonCloudProvider")){
+                if(jcAnnotation.getAnnotationType().toString().contains("MobCloudProvider")){
                     printLog("class Annotation arg process:{}",jcAnnotation.toString());
                     jcAnnotation.args.forEach(e->{
                         JCTree.JCAssign jcAssign=(JCTree.JCAssign)e ;
